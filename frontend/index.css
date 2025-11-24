@@ -1,0 +1,14 @@
+html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #0f0f0f;  /* ← Your chat app dark background */
+    /* Or use a gradient like WhatsApp */
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* Or solid color */
+    /* background-color: #1a1a1a; */
+  }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
