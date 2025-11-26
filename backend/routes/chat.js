@@ -26,7 +26,7 @@ const formatImage = (image) => {
 };
 
 // ──────────────────────────────────────────────────────────────
-// 0. User login / upsert (CALL THIS WHEN USER LOGS IN)
+// 1. User login / upsert (CALL THIS WHEN USER LOGS IN)
 // ──────────────────────────────────────────────────────────────
 router.post('/upsert-user', async (req, res) => {
   try {
@@ -72,7 +72,7 @@ router.post('/upsert-user', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// 1. Create or get existing 1-on-1 chat
+// 2. Create or get existing 1-on-1 chat
 // ──────────────────────────────────────────────────────────────
 router.post('/create-or-get', async (req, res) => {
   try {
@@ -109,7 +109,7 @@ router.post('/create-or-get', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// 2. Get chat + paginated messages
+// 3. Get chat + paginated messages
 // ──────────────────────────────────────────────────────────────
 router.get('/:chatId', async (req, res) => {
   try {
@@ -160,7 +160,7 @@ router.get('/:chatId', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// 3. Send message (text or image)
+// 4. Send message (text or image)
 // ──────────────────────────────────────────────────────────────
 router.post('/send-message', upload.single('image'), async (req, res) => {
   try {
@@ -217,7 +217,97 @@ router.post('/send-message', upload.single('image'), async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// 4. Get user's inbox – all their chats
+// 5. Edit message
+// ──────────────────────────────────────────────────────────────
+router.patch('/message/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { text } = req.body;
+    const userId = req.body.userId;               // you must send the userId from frontend
+
+    if (!text?.trim()) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ error: 'Message not found' });
+
+    // Only the sender can edit
+    if (message.sender.toString() !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Optional: prevent editing after X minutes
+    const ageMs = Date.now() - new Date(message.createdAt);
+    if (ageMs > 15 * 60 * 1000) { // 15 minutes
+      return res.status(403).json({ error: 'Message is too old to edit' });
+    }
+
+    message.text = text.trim();
+    message.edited = true;
+    await message.save();
+
+    const updated = await message.populate('sender', 'username avatar');
+
+    const formatted = {
+      _id: message._id.toString(),
+      sender: updated.sender,
+      text: message.text,
+      image: formatImage(message.image),
+      createdAt: message.createdAt,
+      edited: true
+    };
+
+    res.json({ success: true, message: formatted });
+
+    // Broadcast updated message
+    req.app.get('io')?.to(message.chat.toString()).emit('message-updated', formatted);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
+// 6. Delete message
+// ──────────────────────────────────────────────────────────────
+router.delete('/message/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.query.userId; // passed as query param
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ error: 'Message not found' });
+
+    // Only the sender can delete
+    if (message.sender.toString() !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await Message.deleteOne({ _id: messageId });
+
+    // Update chat's lastMessage if needed (optional improvement)
+    const chat = await Chat.findById(message.chat);
+    if (chat.lastMessage && chat.lastMessage.toString() === messageId) {
+      const previous = await Message.findOne({ chat: message.chat })
+        .sort({ createdAt: -1 });
+      chat.lastMessage = previous?._id || null;
+      chat.updatedAt = new Date();
+      await chat.save();
+    }
+
+    res.json({ success: true, deletedId: messageId });
+
+    // Broadcast deletion
+    req.app.get('io')?.to(message.chat.toString()).emit('message-deleted', { messageId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
+// 7. Get user's inbox – all their chats
 // ──────────────────────────────────────────────────────────────
 router.get('/inbox/:userId', async (req, res) => {
   try {

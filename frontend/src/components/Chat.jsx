@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import './Chat.css';
 
-const SOCKET_URL = 'http://localhost:4000'; 
+const SOCKET_URL = 'http://localhost:4000';
 const API_BASE = 'http://localhost:4000/api/chat';
 
 export default function Chat({ chatId, userId, onLeave }) {
@@ -12,6 +12,9 @@ export default function Chat({ chatId, userId, onLeave }) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
+
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editText, setEditText] = useState('');
 
   const fileInputRef = useRef();
   const socketRef = useRef();
@@ -56,11 +59,69 @@ export default function Chat({ chatId, userId, onLeave }) {
     // Load first page
     loadMessages(1, true);
 
+    // Listen for message updates
+    socketRef.current.on('message-updated', (updatedMessage) => {
+      setMessages(prev => prev.map(m => m._id === updatedMessage._id ? updatedMessage : m));
+    });
+
+    // Listen for message deletions
+    socketRef.current.on('message-deleted', ({ messageId }) => {
+      setMessages(prev => prev.filter(m => m._id !== messageId));
+    });
+
     return () => {
       socketRef.current?.emit('leave-chat', chatId);
       socketRef.current?.disconnect();
     };
   }, [chatId]);
+
+  const startEdit = (message) => {
+    setEditingMessageId(message._id);
+    setEditText(message.text);
+  };
+
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText('');
+  };
+
+  const saveEdit = async (messageId) => {
+    if (!editText.trim()) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/message/${messageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: editText.trim(), userId }),
+      });
+
+      if (res.ok) {
+        cancelEdit();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to edit');
+      }
+    } catch (err) {
+      alert('Network error');
+    }
+  };
+
+  const deleteMessage = async (messageId) => {
+    if (!confirm('Delete this message?')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/message/${messageId}?userId=${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete');
+      }
+    } catch (err) {
+      alert('Network error');
+    }
+  };
 
   // ────────────────────────────── Load Messages (with pagination) ──────────────────────────────
   const loadMessages = async (pageNum = 1, reset = false) => {
@@ -165,7 +226,7 @@ export default function Chat({ chatId, userId, onLeave }) {
             </div>
           )}
 
-          {messages.map((msg) => (
+          {/* {messages.map((msg) => (
             <div
               key={msg._id}
               className={`message-wrapper ${isOwnMessage(msg) ? 'own' : 'other'}`}
@@ -192,6 +253,56 @@ export default function Chat({ chatId, userId, onLeave }) {
                     minute: '2-digit'
                   })}
                 </div>
+              </div>
+            </div>
+          ))} */}
+
+          {messages.map((msg) => (
+            <div
+              key={msg._id}
+              className={`message-wrapper ${isOwnMessage(msg) ? 'own' : 'other'}`}
+            >
+              <div className={`message-bubble ${isOwnMessage(msg) ? 'own' : 'other'}`}>
+                <div className="message-sender">
+                  {isOwnMessage(msg) ? 'You' : msg.sender.username || msg.sender}
+                </div>
+
+                {editingMessageId === msg._id ? (
+                  <div className="edit-input-wrapper">
+                    <input
+                      type="text"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(msg._id)}
+                      autoFocus
+                      className="edit-input"
+                    />
+                    <div className="edit-actions">
+                      <button onClick={() => saveEdit(msg._id)} className="save-btn">Save</button>
+                      <button onClick={cancelEdit} className="cancel-btn">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {msg.text && <p className="message-text">{msg.text} {msg.edited && <small>(edited)</small>}</p>}
+
+                    {msg.image && (
+                      <img src={msg.image} alt="sent" className="message-image" loading="lazy" />
+                    )}
+                  </>
+                )}
+
+                <div className="message-time">
+                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+
+                {/* Edit/Delete buttons – only for own messages */}
+                {isOwnMessage(msg) && editingMessageId !== msg._id && (
+                  <div className="message-actions">
+                    <button onClick={() => startEdit(msg)} className="edit-btn" title="Edit">Edit</button>
+                    <button onClick={() => deleteMessage(msg._id)} className="delete-btn" title="Delete">Delete</button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
