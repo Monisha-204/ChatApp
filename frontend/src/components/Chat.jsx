@@ -120,106 +120,108 @@ export default function Chat({ chatId, userId, onLeave }) {
   const isOwnMessage = (msg) => msg.sender === userId;
 
   return (
-    <div className="chat-container">
-      {/* Header */}
-      <div className="chat-header">
-        <h2>Chat</h2>
-        <button onClick={onLeave} className="leave-btn">Leave</button>
-      </div>
+    <>
+      <div className="chat-container">
 
-      {/* Messages Container */}
-      <div
-        ref={messagesContainerRef}
-        className="messages-container"
-        style={{ overflowY: 'auto', padding: '10px' }}
-      >
-        {loading && page > 1 && (
-          <div style={{ textAlign: 'center', padding: '10px' }}>
-            Loading older messages...
+        <div className="chat-header">
+          <h2>Chat</h2>
+          <button onClick={onLeave} className="leave-btn">Leave</button>
+        </div>
+
+        {/* Messages Container */}
+        <div
+          ref={messagesContainerRef}
+          className="messages-container"
+          style={{ overflowY: 'auto', padding: '10px' }}
+        >
+          {loading && page > 1 && (
+            <div style={{ textAlign: 'center', padding: '10px' }}>
+              Loading older messages...
+            </div>
+          )}
+
+          {messages.map((msg) => (
+            <div
+              key={msg._id}
+              className={`message-wrapper ${isOwnMessage(msg) ? 'own' : 'other'}`}
+            >
+              <div className={`message-bubble ${isOwnMessage(msg) ? 'own' : 'other'}`}>
+                <div className="message-sender">
+                  {isOwnMessage(msg) ? 'You' : msg.sender.username || msg.sender._id || msg.sender}
+                </div>
+
+                {msg.text && <p className="message-text">{msg.text}</p>}
+
+                {msg.image && (
+                  <img
+                    src={msg.image}
+                    alt="sent"
+                    className="message-image"
+                    loading="lazy"
+                  />
+                )}
+
+                <div className="message-time">
+                  {new Date(msg.createdAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Image Preview */}
+        {selectedImage && (
+          <div className="image-preview">
+            <img
+              src={URL.createObjectURL(selectedImage)}
+              alt="Preview"
+              className="preview-img"
+            />
+            <button onClick={() => {
+              setSelectedImage(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }} className="remove-preview-btn">
+              Remove
+            </button>
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg._id}
-            className={`message-wrapper ${isOwnMessage(msg) ? 'own' : 'other'}`}
+        {/* Input Form */}
+        <form onSubmit={sendMessage} className="message-input-form">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="attach-image-btn"
+            title="Attach image"
           >
-            <div className={`message-bubble ${isOwnMessage(msg) ? 'own' : 'other'}`}>
-              <div className="message-sender">
-                {isOwnMessage(msg) ? 'You' : msg.sender.username || msg.sender._id || msg.sender}
-              </div>
-
-              {msg.text && <p className="message-text">{msg.text}</p>}
-
-              {msg.image && (
-                <img
-                  src={msg.image}
-                  alt="sent"
-                  className="message-image"
-                  loading="lazy"
-                />
-              )}
-
-              <div className="message-time">
-                {new Date(msg.createdAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </div>
-            </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Image Preview */}
-      {selectedImage && (
-        <div className="image-preview">
-          <img
-            src={URL.createObjectURL(selectedImage)}
-            alt="Preview"
-            className="preview-img"
-          />
-          <button onClick={() => {
-            setSelectedImage(null);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-          }} className="remove-preview-btn">
-            Remove
+            Image
           </button>
-        </div>
-      )}
 
-      {/* Input Form */}
-      <form onSubmit={sendMessage} className="message-input-form">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="attach-image-btn"
-          title="Attach image"
-        >
-          Image
-        </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="file-input-hidden"
+          />
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleImageSelect}
-          className="file-input-hidden"
-        />
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message..."
+            className="message-input"
+          />
 
-        <input
-          type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message..."
-          className="message-input"
-        />
-
-        <button type="submit" className="send-btn" disabled={loading}>
-          Send
-        </button>
-      </form>
-    </div>
+          <button type="submit" className="send-btn" disabled={loading}>
+            Send
+          </button>
+        </form>
+      </div>
+    </>
   );
 }
