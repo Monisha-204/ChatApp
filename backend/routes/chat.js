@@ -6,7 +6,7 @@ import User from '../models/User.js';
 
 const router = express.Router();
 
-// Multer: store image in memory (we'll save buffer to Message)
+// Multer: store image in memory
 const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter(req, file, cb) {
@@ -24,6 +24,52 @@ const formatImage = (image) => {
   const base64 = image.data.toString('base64');
   return `data:${image.contentType};base64,${base64}`;
 };
+
+// ──────────────────────────────────────────────────────────────
+// 0. User login / upsert (CALL THIS WHEN USER LOGS IN)
+// ──────────────────────────────────────────────────────────────
+router.post('/upsert-user', async (req, res) => {
+  try {
+    const { user_id, username, email, profile } = req.body;
+
+    if (!user_id || !username || !email) {
+      return res.status(400).json({
+        error: 'user_id, username and email are required',
+      });
+    }
+
+    // Upsert user (create if not exists, update fields if exists)
+    const user = await User.findOneAndUpdate(
+      { user_id }, // search by auth provider ID
+      {
+        $set: {
+          username,
+          email,
+          profile: profile || '',
+          status: 'online',              // mark as online on login
+          updatedAt: new Date(),
+        },
+        $setOnInsert: { createdAt: new Date() },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({
+      success: true,
+      user: {
+        _id: user._id.toString(),
+        user_id: user.user_id,
+        username: user.username,
+        email: user.email,
+        profile: user.profile,
+        status: user.status,
+      },
+    });
+  } catch (err) {
+    console.error('Upsert user error:', err);
+    res.status(500).json({ error: 'Failed to register/login user' });
+  }
+});
 
 // ──────────────────────────────────────────────────────────────
 // 1. Create or get existing 1-on-1 chat
@@ -171,7 +217,7 @@ router.post('/send-message', upload.single('image'), async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// 4. (Bonus) Get user's inbox – all their chats
+// 4. Get user's inbox – all their chats
 // ──────────────────────────────────────────────────────────────
 router.get('/inbox/:userId', async (req, res) => {
   try {

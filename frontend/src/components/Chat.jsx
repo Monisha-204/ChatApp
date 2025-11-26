@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import './Chat.css';
 
-const SOCKET_URL = 'http://localhost:4000'; // adjust if needed
+const SOCKET_URL = 'http://localhost:4000'; 
 const API_BASE = 'http://localhost:4000/api/chat';
 
 export default function Chat({ chatId, userId, onLeave }) {
@@ -17,6 +17,31 @@ export default function Chat({ chatId, userId, onLeave }) {
   const socketRef = useRef();
   const messagesEndRef = useRef();
   const messagesContainerRef = useRef();
+
+  // ──────────────────────── UPSERT CURRENT USER ON CHAT OPEN ────────────────────────
+  useEffect(() => {
+    const registerCurrentUser = async () => {
+      try {
+        await fetch(`${API_BASE}/upsert-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: userId,                    // this is the ID typed 
+            username: userId,                   // fallback: use ID as username (for testing)
+            email: `${userId}@temp.com`,        // fake email for dev
+            profile: '',                        // optional avatar URL
+          }),
+        });
+        console.log('User registered/updated:', userId);
+      } catch (err) {
+        console.warn('Failed to upsert user (non-blocking):', err);
+      }
+    };
+
+    if (userId) {
+      registerCurrentUser();
+    }
+  }, [userId]);
 
   // ────────────────────────────── Socket & Initial Load ──────────────────────────────
   useEffect(() => {
