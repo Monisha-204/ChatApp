@@ -23,6 +23,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/chat', chatRoutes);
 
 // MongoDB Connection
+console.log("URI:", process.env.MONGODB_URI);
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));
