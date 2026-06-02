@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import io from 'socket.io-client';
+import { io } from 'socket.io-client';
 import './Chat.css';
 
-const SOCKET_URL = 'http://localhost:4000';
-const API_BASE = 'http://localhost:4000/api/chat';
+const SOCKET_URL = io(import.meta.env.VITE_BACKEND_URL, {
+  transports: ["websocket", "polling"]
+});
+const API_BASE =  `${import.meta.env.VITE_BACKEND_URL}/api/chat`;
 
 export default function Chat({ chatId, userId, onLeave }) {
   const [messages, setMessages] = useState([]);
